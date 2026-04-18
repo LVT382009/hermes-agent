@@ -7053,9 +7053,17 @@ class AIAgent:
         if self.tools:
             api_kwargs["tools"] = self.tools
 
-        if self.max_tokens is not None:
+        _ephemeral_out = getattr(self, "_ephemeral_max_output_tokens", None)
+        if _ephemeral_out is not None:
+            self._ephemeral_max_output_tokens = None  # consume immediately
+            api_kwargs.update(self._max_tokens_param(_ephemeral_out))
+        elif self.max_tokens is not None:
             api_kwargs.update(self._max_tokens_param(self.max_tokens))
+        elif "integrate.api.nvidia.com" in self._base_url_lower:
+            api_kwargs.update(self._max_tokens_param(16384))
         elif self._is_qwen_portal():
+
+            # Qwen Portal defaults to a very low max_tokens when omitted.
             # Qwen Portal defaults to a very low max_tokens when omitted.
             # Reasoning models (qwen3-coder-plus) exhaust that budget on
             # thinking tokens alone, causing the portal to return
@@ -10796,6 +10804,9 @@ class AIAgent:
                 continue
 
             if restart_with_length_continuation:
+                _boost_base = self.max_tokens if self.max_tokens else 4096
+                _boost = _boost_base * (length_continue_retries + 1)
+                self._ephemeral_max_output_tokens = min(_boost, 32768)
                 continue
 
             # Guard: if all retries exhausted without a successful response
