@@ -115,3 +115,23 @@ def plugin_cleanup(ctx):
     ctx.log(f"NOX V3 cleanup - daily usage: {_global_state['daily_token_usage']} tokens")
     ctx.log(f"Sessions served: {_global_state['session_count']}")
     ctx.log(f"Verification success rate: {_global_state['verification_success_rate']:.2%}")
+
+
+# ---------------------------------------------------------------------------
+# Plugin registration
+# ---------------------------------------------------------------------------
+
+def register(ctx) -> None:
+    """Register NOX V3 plugin hooks and commands."""
+    from . import hooks, commands
+
+    # Register hooks
+    ctx.register_hook("pre_llm_call", hooks.pre_llm_call)
+    ctx.register_hook("post_llm_call", hooks.post_llm_call)
+
+    # Register slash command
+    ctx.register_command(
+        "nox",
+        handler=commands.handle_nox_command,
+        description="NOX V3 management - status, enable, disable, config",
+    )
