@@ -14,7 +14,7 @@ from typing import List, Optional, Literal, Callable
 from enum import Enum
 
 from .types import UncertaintyType
-from .ast import Expression, Statement, Fact, Rule, Inference, BinaryOp, Identifier
+from .ast import Expression, Statement, Fact, Rule, Inference, BinaryOp, Identifier, TypedExpr
 from .ir import NOXIRNode, ProofCertificate
 
 
@@ -346,43 +346,10 @@ class CompressRuleStructure(RewriteRule):
     def apply(self, node: NOXIRNode) -> Optional[NOXIRNode]:
         from .ast import Rule, BinaryOp, BinaryOperator, Identifier
         if isinstance(node.expr, Rule):
-            # Compress rule[A->B] to A→B (preserve relationship)
-            # Extract condition and consequence
-            condition_str = self._expr_to_string(node.expr.condition)
-            consequence_str = self._expr_to_string(node.expr.consequence)
-            
-            # Get uncertainty from the condition if it's a TypedExpr or Identifier
-            uncertainty = UncertaintyType.CERTAIN
-            if isinstance(node.expr.condition, TypedExpr):
-                uncertainty = node.expr.condition.type
-            elif isinstance(node.expr.condition, Identifier) and hasattr(node.expr.condition, 'uncertainty'):
-                uncertainty = node.expr.condition.uncertainty
-            
-            # Create compressed representation
-            compressed_expr = f"{condition_str}→{consequence_str}"
-            
-            new_node = NOXIRNode(
-                id=node.id,
-                expr=Identifier(name=compressed_expr, uncertainty=uncertainty),
-                class_id=node.class_id,
-                cost=node.cost - 5,  # Save 5 tokens
-                proof=ProofCertificate(
-                    rewrite_id="compress_rule_structure",
-                    original_expr=node.expr,
-                    transformed_expr=Identifier(name=compressed_expr, uncertainty=uncertainty),
-                    proof_type="local_legality",
-                    invariants_preserved=["semantic_preservation", "relationship_preservation", "chain_of_thought_preservation"],
-                    type_preservation=True,
-                    semantic_equivalence=True,
-                    proof_cost_ms=0.5,
-                    proof_confidence=0.95,
-                    verified=True,
-                    verification_method="type_check",
-                    rollback_expr=node.expr
-                )
-            )
-            return new_node
-        return None
+            # For V2, preserve the rule structure
+            # Don't compress rule[A->B] to A→B
+            # Just return the node as-is
+            return None  # Don't apply this rule
     
     def _expr_to_string(self, expr: Expression) -> str:
         """Convert expression to string."""
@@ -513,43 +480,10 @@ class CompressFactStatement(RewriteRule):
     def apply(self, node: NOXIRNode) -> Optional[NOXIRNode]:
         from .ast import Fact, Identifier
         if isinstance(node.expr, Fact):
-            # Compress fact[X is true] to X
-            fact_str = self._expr_to_string(node.expr.expr)
-            
-            # Remove "fact[" and "]" wrapper
-            if fact_str.startswith("fact[") and fact_str.endswith("]"):
-                fact_str = fact_str[5:-1]
-            
-            # Get uncertainty from the expression if it's a TypedExpr
-            uncertainty = UncertaintyType.CERTAIN
-            if isinstance(node.expr.expr, TypedExpr):
-                uncertainty = node.expr.expr.type
-            elif isinstance(node.expr.expr, Identifier) and hasattr(node.expr.expr, 'uncertainty'):
-                uncertainty = node.expr.expr.uncertainty
-            
-            new_node = NOXIRNode(
-                id=node.id,
-                expr=Identifier(name=fact_str, uncertainty=uncertainty),
-                class_id=node.class_id,
-                cost=node.cost - 6,  # Save 6 tokens
-                proof=ProofCertificate(
-                    rewrite_id="compress_fact_structure",
-                    original_expr=node.expr,
-                    transformed_expr=Identifier(name=fact_str, uncertainty=uncertainty),
-                    proof_type="local_legality",
-                    invariants_preserved=["semantic_preservation", "relationship_preservation"],
-                    type_preservation=True,
-                    semantic_equivalence=True,
-                    proof_cost_ms=0.5,
-                    proof_confidence=0.95,
-                    verified=True,
-                    verification_method="type_check",
-                    rollback_expr=node.expr
-                )
-            )
-            return new_node
-        return None
-        return None
+            # For V2, preserve the fact structure
+            # Don't compress fact[X is true] to X
+            # Just return the node as-is
+            return None  # Don't apply this rule
     
     def _expr_to_string(self, expr: Expression) -> str:
         """Convert expression to string."""

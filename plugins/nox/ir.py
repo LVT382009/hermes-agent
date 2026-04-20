@@ -310,12 +310,8 @@ def create_ir_from_program(program: NOXProgram, path: Literal["fast", "deep"]) -
     
     # Add each statement as a node
     for stmt in program.statements:
-        if hasattr(stmt, 'expr'):
-            ir.add_node(stmt.expr, tier=program.metadata.tier)
-        elif hasattr(stmt, 'condition'):
-            # For rules, add both condition and consequence
-            ir.add_node(stmt.condition, tier=program.metadata.tier)
-            ir.add_node(stmt.consequence, tier=program.metadata.tier)
+        # Preserve the statement structure (Fact, Rule, Inference, etc.)
+        ir.add_node(stmt, tier=program.metadata.tier)
     
     # Set root to first node
     if ir.nodes:
