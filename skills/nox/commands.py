@@ -19,8 +19,6 @@ sys.path.insert(0, str(SKILL_DIR))
 
 from validate import (
     is_nox_enabled,
-    get_nox_config,
-    ValidationMode,
     NOXConfig
 )
 from toggle import enable_nox, disable_nox, get_nox_status
@@ -39,8 +37,8 @@ def command_enable(args: list = None) -> str:
         # Enable NOX
         result = enable_nox()
 
-        if result.get("success"):
-            config = get_nox_config()
+        if result:
+            config = NOXConfig()
             mode = config.get_mode().value
 
             return f"""✅ NOX Enabled
@@ -55,7 +53,7 @@ Configuration:
 
 Use /nox status to monitor performance and token consumption."""
         else:
-            return f"❌ Failed to enable NOX: {result.get('error', 'Unknown error')}"
+            return f"❌ Failed to enable NOX: Unknown error"
 
     except Exception as e:
         return f"❌ Error enabling NOX: {str(e)}"
@@ -74,7 +72,7 @@ def command_disable(args: list = None) -> str:
         # Disable NOX
         result = disable_nox()
 
-        if result.get("success"):
+        if result:
             return """✅ NOX Disabled
 
 NOX validation has been turned off.
@@ -83,7 +81,7 @@ Note: NOX has zero overhead when disabled (<1ms).
 
 Use /nox enable to re-enable NOX validation."""
         else:
-            return f"❌ Failed to disable NOX: {result.get('error', 'Unknown error')}"
+            return f"❌ Failed to disable NOX: Unknown error"
 
     except Exception as e:
         return f"❌ Error disabling NOX: {str(e)}"
@@ -101,7 +99,7 @@ def command_status(args: list = None) -> str:
     try:
         # Get current status
         status = get_nox_status()
-        config = get_nox_config()
+        config = NOXConfig()
 
         enabled = status.get("enabled", False)
         mode = config.get_mode().value
@@ -120,7 +118,7 @@ def command_status(args: list = None) -> str:
             savings = mode_savings.get(mode, "80-84%")
 
             # Get layer configuration
-            layers_config = config.config.get("layers", {})
+            layers_config = config.config
             pre_check_enabled = layers_config.get("pre_check", {}).get("enabled", False)
             structured_enabled = layers_config.get("structured_reasoning", {}).get("enabled", False)
             citation_enabled = layers_config.get("citation_verify", {}).get("enabled", False)

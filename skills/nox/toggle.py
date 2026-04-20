@@ -259,6 +259,15 @@ def disable_layer(layer_name: str) -> bool:
     return save_config(config)
 
 
+def get_nox_status() -> Dict[str, Any]:
+    """Get current NOX status as a dictionary."""
+    return {
+        "enabled": is_nox_enabled(),
+        "mode": get_nox_mode(),
+        "layers": get_layer_config()
+    }
+
+
 def print_status() -> None:
     """Print current NOX status."""
     enabled = is_nox_enabled()

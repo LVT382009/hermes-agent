@@ -53,6 +53,14 @@ from hermes_cli.timeouts import (
     get_provider_stale_timeout,
 )
 
+# NOX Integration for automatic validation and optimization
+try:
+    from agent.nox_integration import apply_nox_validation, should_apply_nox, get_nox_metadata
+    NOX_AVAILABLE = True
+except ImportError:
+    NOX_AVAILABLE = False
+    logger.warning("NOX integration not available - automatic validation disabled")
+
 _hermes_home = get_hermes_home()
 _project_env = Path(__file__).parent / '.env'
 _loaded_env_paths = load_hermes_dotenv(hermes_home=_hermes_home, project_env=_project_env)
@@ -12220,6 +12228,24 @@ class AIAgent:
                 last_reasoning = msg["reasoning"]
                 break
 
+        # Apply NOX validation and optimization if enabled
+        if NOX_AVAILABLE and should_apply_nox() and final_response:
+            try:
+                optimized_response, nox_metadata = apply_nox_validation(
+                    final_response,
+                    messages,
+                    config=None  # Will read from NOX status file
+                )
+                final_response = optimized_response
+                # Store NOX metadata for debugging (will be included in result)
+                nox_result_metadata = nox_metadata
+                logger.info(f"NOX validation applied: {nox_metadata.get('token_reduction', 0):.1f}% token reduction")
+            except Exception as e:
+                logger.error(f"NOX validation failed: {e}")
+                nox_result_metadata = {"nox_applied": False, "error": str(e)}
+        else:
+            nox_result_metadata = {"nox_applied": False}
+
         # Build result with interrupt info if applicable
         result = {
             "final_response": final_response,
@@ -12245,6 +12271,7 @@ class AIAgent:
             "estimated_cost_usd": self.session_estimated_cost_usd,
             "cost_status": self.session_cost_status,
             "cost_source": self.session_cost_source,
+            "nox_metadata": nox_result_metadata,  # NOX validation and optimization metadata
         }
         # If a /steer landed after the final assistant turn (no more tool
         # batches to drain into), hand it back to the caller so it can be
