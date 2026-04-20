@@ -63,18 +63,20 @@ def format_config() -> str:
 """
 
 
-def handle_nox_command(ctx, args: list, config: Dict[str, Any]) -> str:
+def handle_nox_command(raw_args: str) -> str:
     """
     Handle /nox slash command.
 
     Args:
-        ctx: Hermes context
-        args: Command arguments
-        config: Plugin configuration
+        raw_args: Raw command arguments as a string
 
     Returns:
         Response message
     """
+    # Parse arguments
+    args = raw_args.strip().split() if raw_args else []
+    config = get_config()
+
     if not args:
         return format_status()
 
@@ -125,8 +127,6 @@ def handle_nox_command(ctx, args: list, config: Dict[str, Any]) -> str:
             DEFAULT_CONFIG[key] = value
             config[key] = value
 
-        ctx.log(f"NOX V3: Enabled (mode={mode})")
-
         return f"""
 ✅ NOX V3 ENABLED
 
@@ -147,8 +147,6 @@ Use '/nox status' to check usage.
 
         state = get_state()
         sessions = state["session_count"]
-
-        ctx.log(f"NOX V3: Disabled (served {sessions} sessions)")
 
         return f"""
 ❌ NOX V3 DISABLED
@@ -200,7 +198,6 @@ Daily token usage: {state['daily_token_usage']}
             config[key] = value
 
         if updates:
-            ctx.log(f"NOX V3: Config updated: {updates}")
             return f"""
 ✅ NOX V3 Configuration Updated
 
@@ -212,7 +209,6 @@ Daily token usage: {state['daily_token_usage']}
     # /nox reset
     elif subcommand == "reset":
         reset_daily_usage()
-        ctx.log("NOX V3: Daily token usage reset")
 
         return "✅ NOX V3 daily token usage has been reset."
 
