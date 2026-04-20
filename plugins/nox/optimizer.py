@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from .ast import Expression, Statement, estimate_expression_cost
 from .ir import NOXIR, NOXIRNode, ProofCertificate
 from .rewrite_rules import RewriteRule, RewriteRuleRegistry, rule_registry, RewriteResult
+from .rewrite_rules_v2 import rule_registry_v2
 from .types import UncertaintyType
 
 
@@ -86,8 +87,8 @@ class AbortController:
 class NOXOptimizer:
     """NOX optimizer with fast and deep paths."""
     
-    def __init__(self):
-        self.rule_registry = rule_registry
+    def __init__(self, rule_registry=None):
+        self.rule_registry = rule_registry or rule_registry_v2  # Use V2 rules by default
     
     def optimize(self, ir: NOXIR, config: OptimizationConfig) -> OptimizationResult:
         """
@@ -203,12 +204,12 @@ class NOXOptimizer:
         for node in ir.nodes:
             # Try each rule on this node
             for rule in rules:
-                if rule.can_apply(node.expr):
-                    result = rule.apply(node.expr)
+                if rule.can_apply(node):
+                    result = rule.apply(node)
                     
-                    if result.success:
+                    if result is not None:
                         # Update node expression
-                        node.expr = result.transformed_expr
+                        node.expr = result.expr
                         node.proof = result.proof
                         
                         # Update cost
@@ -217,10 +218,10 @@ class NOXOptimizer:
                         savings = old_cost - node.cost
                         total_savings += savings
                         
-                        # Record application
-                        rule.record_application(savings)
+                        # Track rule application
+                        rule.application_count += 1
                         
-                        # Only apply one rule per node per round
+                        # Move to next node after successful rewrite
                         break
         
         return total_savings
