@@ -833,6 +833,13 @@ DEFAULT_CONFIG = {
         "force_ipv4": False,
     },
 
+
+    # Rate limiter — paces API calls to stay under provider quota (0 = disabled)
+    "rate_limit": {
+        "requests_per_minute": 0,  # Global RPM ceiling (0 = disabled)
+        "providers": {},  # Per-provider RPM limits: {"nvidia": 40, "openai": 3}
+    },
+
     # Config schema version - bump this when adding new required fields
     "_config_version": 21,
 }
@@ -1740,6 +1747,14 @@ OPTIONAL_ENV_VARS = {
         "password": False,
         "category": "setting",
     },
+    "HERMES_REQUESTS_PER_MINUTE": {
+        "description": "Global rate limit for API calls (0 = disabled, overrides config.yaml)",
+        "prompt": "Requests per minute (0 = disabled)",
+        "url": None,
+        "password": False,
+        "category": "setting",
+    },
+
 }
 
 # Tool Gateway env vars are always visible — they're useful for

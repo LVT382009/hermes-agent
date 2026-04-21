@@ -95,6 +95,7 @@ from agent.model_metadata import (
     save_context_length, is_local_endpoint,
     query_ollama_num_ctx,
 )
+from agent.rate_limiter import make_registry as _make_rate_limiter_registry
 from agent.context_compressor import ContextCompressor
 from agent.subdirectory_hints import SubdirectoryHintTracker
 from agent.prompt_caching import apply_anthropic_cache_control
@@ -1400,6 +1401,8 @@ class AIAgent:
             _agent_cfg = _load_agent_config()
         except Exception:
             _agent_cfg = {}
+        # Initialize rate limiter registry
+        self._rl_registry = _make_rate_limiter_registry(_agent_cfg)
         # Cache only the derived auxiliary compression context override that is
         # needed later by the startup feasibility check.  Avoid exposing a
         # broad pseudo-public config object on the agent instance.
@@ -5175,6 +5178,17 @@ class AIAgent:
                     result["response"] = normalize_converse_response(raw_response)
                 else:
                     request_client_holder["client"] = self._create_request_openai_client(reason="chat_completion_request")
+                    # Acquire rate limiter slot before API call
+                    _rl_provider = getattr(self, "provider", None) or getattr(self, "_provider", None)
+                    _rl_limiter = self._rl_registry.resolve(_rl_provider)
+                    _rl_waited = _rl_limiter.acquire()
+                    if _rl_waited > 0.05:
+                        self._emit_status(
+                            f"🐢 Rate limiter: waited {_rl_waited:.1f}s "
+                            f"({_rl_limiter.rpm} req/min, provider={_rl_provider or 'default'}). "
+                            f"Sending now..."
+                        )
+
                     result["response"] = request_client_holder["client"].chat.completions.create(**api_kwargs)
             except Exception as e:
                 result["error"] = e
@@ -5526,6 +5540,17 @@ class AIAgent:
             # attempt's start, not a previous attempt's last chunk.
             last_chunk_time["t"] = time.time()
             self._touch_activity("waiting for provider response (streaming)")
+            # Acquire rate limiter slot before API call
+            _rl_provider = getattr(self, "provider", None) or getattr(self, "_provider", None)
+            _rl_limiter = self._rl_registry.resolve(_rl_provider)
+            _rl_waited = _rl_limiter.acquire()
+            if _rl_waited > 0.05:
+                self._emit_status(
+                    f"🐢 Rate limiter: waited {_rl_waited:.1f}s "
+                    f"({_rl_limiter.rpm} req/min, provider={_rl_provider or 'default'}). "
+                    f"Sending now..."
+                )
+
             stream = request_client_holder["client"].chat.completions.create(**stream_kwargs)
 
             # Capture rate limit headers from the initial HTTP response.
