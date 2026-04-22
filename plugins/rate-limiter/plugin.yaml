@@ -1,0 +1,13 @@
+name: rate-limiter
+version: 2.0.0
+description: >
+  Cross-session rate limit guard for Hermes Agent side clients.
+  Proactively blocks requests BEFORE hitting the API to prevent 429 errors.
+  Tracks request counts per minute and waits when approaching rate limits.
+  Core enforcement is always active via run_agent.py.
+author: LVT382009
+hooks:
+  - pre_llm_call
+  - post_llm_call
+provides_slash_commands:
+  - ratelimit
