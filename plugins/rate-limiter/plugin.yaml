@@ -1,11 +1,11 @@
 name: rate-limiter
 version: 1.0.0
 description: >
-  Slash commands for the built-in rate limiter.
-  Core enforcement is always active via run_agent.py.
-  This plugin adds /ratelimit runtime controls.
+  Cross-session rate limit guard for Hermes Agent side clients.
+  Injects context when rate-limited to prevent retry amplification.
 author: LVT382009
-provides_hooks:
-  - on_session_start
+hooks:
+  - pre_llm_call
+  - post_llm_call
 provides_slash_commands:
   - ratelimit
