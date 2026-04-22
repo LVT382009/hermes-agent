@@ -256,6 +256,100 @@ def format_remaining(seconds: float) -> str:
     return f"{h}h {m}m" if m else f"{h}h"
 
 
+def check_rate_limit_before_call(
+    provider: str = "",
+    model: str = "",
+) -> Optional[float]:
+    """Check if we should rate-limit before making an API call.
+
+    This is called from run_agent.py BEFORE making the API call.
+    It tracks request counts per minute and returns the remaining time
+    if we're rate-limited, or None if we can proceed.
+
+    Args:
+        provider: Provider name (e.g., "nvidia", "openrouter", "nous")
+        model: Model name (for per-model limits if configured)
+
+    Returns:
+        Seconds remaining until reset, or None if not rate-limited.
+    """
+    # Check if rate limiter is enabled
+    if not is_enabled():
+        return None
+
+    config = _load_config()
+    if not config:
+        return None
+
+    # Get the limit for this provider
+    provider_key = provider.lower() if provider else "default"
+    limit_config = config.get("limits", {}).get(provider_key, {})
+    rpm = limit_config.get("requests_per_minute")
+
+    if not rpm:
+        # Try default limit
+        rpm = config.get("limits", {}).get("default", {}).get("requests_per_minute")
+        if not rpm:
+            return None
+
+    # Track request counts in memory
+    # Use a simple sliding window approach
+    now = time.time()
+    window_start = now - 60.0  # 1-minute window
+
+    # Get or create request tracker for this provider
+    tracker_key = f"{provider_key}:{model}" if model else provider_key
+
+    # Load existing tracker state
+    tracker_path = os.path.join(os.path.dirname(_state_path()), f"tracker_{provider_key}.json")
+    try:
+        with open(tracker_path) as f:
+            tracker = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        tracker = {"requests": [], "last_reset": now}
+
+    # Clean up old requests outside the window
+    tracker["requests"] = [t for t in tracker.get("requests", []) if t > window_start]
+
+    # Check if we're at the limit
+    request_count = len(tracker["requests"])
+    if request_count >= rpm:
+        # We're rate-limited - calculate when the oldest request will expire
+        if tracker["requests"]:
+            oldest_request = min(tracker["requests"])
+            remaining = oldest_request + 60.0 - now
+            if remaining > 0:
+                logger.warning(
+                    "Rate limit reached for %s: %d requests in last minute. Wait %.0fs.",
+                    provider_key,
+                    request_count,
+                    remaining,
+                )
+                return remaining
+
+    # Record this request
+    tracker["requests"].append(now)
+
+    # Save tracker state
+    try:
+        state_dir = os.path.dirname(tracker_path)
+        os.makedirs(state_dir, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=state_dir, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(tracker, f)
+            os.replace(tmp_path, tracker_path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+    except Exception as exc:
+        logger.debug("Failed to write rate limit tracker: %s", exc)
+
+    return None
+
+
 # Hook functions for plugin integration
 def check_rate_limit(
     session_id: str = "",
