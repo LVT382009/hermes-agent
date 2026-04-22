@@ -103,6 +103,7 @@ from agent.model_metadata import (
     save_context_length, is_local_endpoint,
     query_ollama_num_ctx,
 )
+from agent.rate_limiter import make_registry as _make_rate_limiter_registry
 from agent.context_compressor import ContextCompressor
 from agent.subdirectory_hints import SubdirectoryHintTracker
 from agent.prompt_caching import apply_anthropic_cache_control
@@ -1407,12 +1408,19 @@ class AIAgent:
             _agent_cfg = _load_agent_config()
         except Exception:
             _agent_cfg = {}
+        # Initialize rate limiter registry
+        try:
+            self._rl_registry = _make_rate_limiter_registry(_agent_cfg)
+            logger.info(f"Rate limiter registry initialized: default_rpm={_agent_cfg.get('rate_limit', {}).get('requests_per_minute', 0)}, providers={_agent_cfg.get('rate_limit', {}).get('providers', {})}")
+        except Exception as exc:
+            logger.error(f"Failed to initialize rate limiter registry: {exc}")
+            self._rl_registry = None
         # Cache only the derived auxiliary compression context override that is
         # needed later by the startup feasibility check.  Avoid exposing a
         # broad pseudo-public config object on the agent instance.
         self._aux_compression_context_length_config = None
 
-        # Persistent memory (MEMORY.md + USER.md) -- loaded from disk
+        # Persistent memory (MEMORY.md + USER.md) — loaded from disk
         self._memory_store = None
         self._memory_enabled = False
         self._user_profile_enabled = False
@@ -5781,6 +5789,17 @@ class AIAgent:
 
         def _call():
             try:
+                # Apply rate limiting before making the API call
+                if self._rl_registry is not None:
+                    limiter = self._rl_registry.resolve(self.provider)
+                    wait_time = limiter.acquire()
+                    if wait_time > 0:
+                        logger.info(f"Rate limiter waited {wait_time:.2f}s for provider {self.provider} (RPM: {limiter.rpm})")
+                    else:
+                        logger.debug(f"Rate limiter: no wait needed for provider {self.provider} (RPM: {limiter.rpm})")
+                else:
+                    logger.warning("Rate limiter registry not initialized - skipping rate limiting")
+
                 if self.api_mode == "codex_responses":
                     request_client_holder["client"] = self._create_request_openai_client(reason="codex_stream_request")
                     result["response"] = self._run_codex_stream(
@@ -6050,6 +6069,17 @@ class AIAgent:
 
             def _bedrock_call():
                 try:
+                    # Apply rate limiting before making the API call
+                    if self._rl_registry is not None:
+                        limiter = self._rl_registry.resolve(self.provider)
+                        wait_time = limiter.acquire()
+                        if wait_time > 0:
+                            logger.info(f"Rate limiter waited {wait_time:.2f}s for provider {self.provider} (RPM: {limiter.rpm})")
+                        else:
+                            logger.debug(f"Rate limiter: no wait needed for provider {self.provider} (RPM: {limiter.rpm})")
+                    else:
+                        logger.warning("Rate limiter registry not initialized - skipping rate limiting")
+
                     from agent.bedrock_adapter import (
                         _get_bedrock_runtime_client,
                         stream_converse_with_callbacks,
@@ -6111,6 +6141,17 @@ class AIAgent:
 
         def _call_chat_completions():
             """Stream a chat completions response."""
+            # Apply rate limiting before making the API call
+            if self._rl_registry is not None:
+                limiter = self._rl_registry.resolve(self.provider)
+                wait_time = limiter.acquire()
+                if wait_time > 0:
+                    logger.info(f"Rate limiter waited {wait_time:.2f}s for provider {self.provider} (RPM: {limiter.rpm})")
+                else:
+                    logger.debug(f"Rate limiter: no wait needed for provider {self.provider} (RPM: {limiter.rpm})")
+            else:
+                logger.warning("Rate limiter registry not initialized - skipping rate limiting")
+
             import httpx as _httpx
             # Per-provider / per-model request_timeout_seconds (from config.yaml)
             # wins over the HERMES_API_TIMEOUT env default if the user set it.
@@ -6355,6 +6396,17 @@ class AIAgent:
             the rest of the agent loop (validation, tool extraction, etc.)
             works unchanged.
             """
+            # Apply rate limiting before making the API call
+            if self._rl_registry is not None:
+                limiter = self._rl_registry.resolve(self.provider)
+                wait_time = limiter.acquire()
+                if wait_time > 0:
+                    logger.info(f"Rate limiter waited {wait_time:.2f}s for provider {self.provider} (RPM: {limiter.rpm})")
+                else:
+                    logger.debug(f"Rate limiter: no wait needed for provider {self.provider} (RPM: {limiter.rpm})")
+            else:
+                logger.warning("Rate limiter registry not initialized - skipping rate limiting")
+
             has_tool_use = False
 
             # Reset stale-stream timer for this attempt

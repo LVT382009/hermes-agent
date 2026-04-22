@@ -917,3 +917,17 @@ display:
 #   # Names and usernames are NOT affected (user-chosen, publicly visible).
 #   # Routing/delivery still uses the original values internally.
 #   redact_pii: false
+
+# =============================================================================
+# Rate Limiter — paces API calls to stay under provider quota
+# =============================================================================
+# Rate limiter — paces API calls to stay under provider quota (0 = disabled)
+# Presets: nvidia=40  openrouter=20  openai=3  mistral=2  groq=30
+rate_limit:
+  requests_per_minute: 0
+  providers:
+    nvidia: 40
+    openai: 3
+    mistral: 2
+    openrouter: 20
+    groq: 30
