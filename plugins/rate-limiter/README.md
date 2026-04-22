@@ -18,8 +18,10 @@ This plugin records rate limit state on the first 429 and checks it before subse
 
 | Hook | Behaviour |
 |---|---|
-| `pre_llm_call` | Check if provider is currently rate-limited. If so, skip the request and return early. |
+| `pre_llm_call` | Check if provider is currently rate-limited. If so, inject context to inform the user about the rate limit. |
 | `post_llm_call` | If a 429 error is received, parse reset time from headers/error context and record to shared state file. |
+
+**IMPORTANT**: The `pre_llm_call` hook cannot block LLM API calls - it can only inject context into the user message. When rate-limited, the plugin injects a warning message to inform the user, but the LLM API call still proceeds. Users should wait for the rate limit to expire before retrying.
 
 State is stored in `$HERMES_HOME/rate_limits/nous.json` and is shared across all sessions.
 

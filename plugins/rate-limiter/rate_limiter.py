@@ -257,8 +257,21 @@ def format_remaining(seconds: float) -> str:
 
 
 # Hook functions for plugin integration
-def check_rate_limit(*args, **kwargs) -> Optional[dict]:
-    """Pre-LLM call hook: check if rate-limited and return early if so."""
+def check_rate_limit(
+    session_id: str = "",
+    user_message: str = "",
+    conversation_history: list = [],
+    is_first_turn: bool = False,
+    model: str = "",
+    platform: str = "",
+    sender_id: str = "",
+    **kwargs
+) -> Optional[dict]:
+    """Pre-LLM call hook: inject context if rate-limited.
+
+    NOTE: pre_llm_call cannot block the LLM call - it can only inject context.
+    We inject a message to inform the user about the rate limit.
+    """
     # Check if rate limiter is enabled
     if not is_enabled():
         return None
@@ -266,18 +279,28 @@ def check_rate_limit(*args, **kwargs) -> Optional[dict]:
     remaining = get_rate_limit_remaining()
     if remaining is not None:
         logger.warning(
-            "Rate limit active: %s remaining. Skipping request.",
+            "Rate limit active: %s remaining. Injecting context.",
             format_remaining(remaining),
         )
+        # Inject context to inform the user
         return {
-            "skip": True,
-            "reason": f"rate_limited",
-            "remaining_seconds": remaining,
+            "context": (
+                f"⚠️ RATE LIMIT ACTIVE\n"
+                f"Provider is rate-limited. Wait {format_remaining(remaining)} before retrying.\n"
+                f"Use /ratelimit status to check current state.\n"
+                f"Use /ratelimit clear to reset (use with caution)."
+            )
         }
     return None
 
 
-def record_rate_limit_hook(*args, **kwargs) -> None:
+def record_rate_limit_hook(
+    session_id: str = "",
+    user_message: str = "",
+    assistant_response: str = "",
+    model: str = "",
+    **kwargs
+) -> None:
     """Post-LLM call hook: record rate limit if 429 received."""
     # Check if rate limiter is enabled
     if not is_enabled():
